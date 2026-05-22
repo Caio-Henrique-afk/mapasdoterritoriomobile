@@ -54,7 +54,7 @@
             width: 100%;
             height: 100%;
             z-index: 1;
-            pointer-events: none; /* Garante que os cliques passem direto para a tela de desenho */
+            pointer-events: none; /* Crucial: impede o Canva de bloquear a renderização dos botões e do desenho */
         }
         
         .map-bg-wrapper iframe {
@@ -185,7 +185,7 @@
         let currentTool = 'pen';
         let selectedQuadra = null;
 
-        // Gerar Grid de Números 1-42
+        // Gerar Grid de Números 1-42 de volta na Interface
         const quadraGrid = document.getElementById('quadraGrid');
         for (let i = 1; i <= 42; i++) {
             const div = document.createElement('div');
@@ -288,4 +288,52 @@
                 nome, 
                 status, 
                 obs, 
-                data: new Date().toLocaleDateString('pt-BR')
+                data: new Date().toLocaleDateString('pt-BR') 
+            };
+            
+            let registros = JSON.parse(localStorage.getItem('mapa_caisson')) || [];
+            registros.unshift(registro);
+            localStorage.setItem('mapa_caisson', JSON.stringify(registros));
+
+            atualizarInterface();
+            document.getElementById('obs').value = '';
+        }
+
+        function atualizarInterface() {
+            const lista = document.getElementById('historico');
+            const registros = JSON.parse(localStorage.getItem('mapa_caisson')) || [];
+            lista.innerHTML = '<h3>Histórico de Visitas</h3>';
+
+            registros.forEach(reg => {
+                const color = reg.status === 'Concluído' ? 'var(--success)' : 'var(--info)';
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <span class="delete-item" onclick="removerItem(${reg.id})">×</span>
+                    <strong>${reg.nome}</strong> 
+                    <span class="status-badge" style="background:${color}">${reg.status}</span><br>
+                    <small>🕒 Registrado em: ${reg.data}</small>
+                    <p style="margin:5px 0; font-size:0.85rem;">${reg.obs}</p>
+                `;
+                lista.appendChild(item);
+            });
+        }
+
+        function removerItem(id) {
+            let registros = JSON.parse(localStorage.getItem('mapa_caisson')) || [];
+            registros = registros.filter(r => r.id !== id);
+            localStorage.setItem('mapa_caisson', JSON.stringify(registros));
+            atualizarInterface();
+        }
+
+        function limparHistorico() {
+            if(confirm("Deseja apagar todos os dados salvos?")) {
+                localStorage.removeItem('mapa_caisson');
+                atualizarInterface();
+            }
+        }
+
+        window.onload = atualizarInterface;
+    </script>
+</body>
+</html>
