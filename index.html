@@ -46,13 +46,21 @@
 
         .canvas-container { position: relative; flex: 1; background: #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
         
-        /* Imagem de fundo estática vinda do Canva que permite desenho por cima */
-        #mapImage { 
-            width: 100%; 
-            height: 100%; 
-            object-fit: contain; 
-            position: absolute; 
-            z-index: 1; 
+        /* Container especial para renderizar o iframe do mapa geral no fundo */
+        .map-bg-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none; /* Garante que os cliques passem direto para a tela de desenho */
+        }
+        
+        .map-bg-wrapper iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
         }
 
         #drawingCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; touch-action: none; z-index: 2; }
@@ -107,7 +115,9 @@
         </div>
         <div class="canvas-container" id="container">
             
-            <img src="https://www.canva.com/design/DAHKZFIg1vI/w6Ir9gc02ySVz1zZKpMN_w/view?embed" id="mapImage" alt="Mapa Geral">
+            <div class="map-bg-wrapper">
+                <iframe loading="lazy" src="https://www.canva.com/design/DAHKZFIg1vI/w6Ir9gc02ySVz1zZKpMN_w/view?embed" allowfullscreen></iframe>
+            </div>
 
             <canvas id="drawingCanvas"></canvas>
             
@@ -229,7 +239,7 @@
             if (!drawing) return;
             if (e.touches.length > 0) {
                 draw(e.touches[0]);
-                if(e.cancelable) e.preventDefault(); // Evita arrastar a tela enquanto desenha
+                if(e.cancelable) e.preventDefault(); 
             }
         }, { passive: false });
 
@@ -278,52 +288,4 @@
                 nome, 
                 status, 
                 obs, 
-                data: new Date().toLocaleDateString('pt-BR') 
-            };
-            
-            let registros = JSON.parse(localStorage.getItem('mapa_caisson')) || [];
-            registros.unshift(registro);
-            localStorage.setItem('mapa_caisson', JSON.stringify(registros));
-
-            atualizarInterface();
-            document.getElementById('obs').value = '';
-        }
-
-        function atualizarInterface() {
-            const lista = document.getElementById('historico');
-            const registros = JSON.parse(localStorage.getItem('mapa_caisson')) || [];
-            lista.innerHTML = '<h3>Histórico de Visitas</h3>';
-
-            registros.forEach(reg => {
-                const color = reg.status === 'Concluído' ? 'var(--success)' : 'var(--info)';
-                const item = document.createElement('div');
-                item.className = 'history-item';
-                item.innerHTML = `
-                    <span class="delete-item" onclick="removerItem(${reg.id})">×</span>
-                    <strong>${reg.nome}</strong> 
-                    <span class="status-badge" style="background:${color}">${reg.status}</span><br>
-                    <small>🕒 Registrado em: ${reg.data}</small>
-                    <p style="margin:5px 0; font-size:0.85rem;">${reg.obs}</p>
-                `;
-                lista.appendChild(item);
-            });
-        }
-
-        function removerItem(id) {
-            let registros = JSON.parse(localStorage.getItem('mapa_caisson')) || [];
-            registros = registros.filter(r => r.id !== id);
-            localStorage.setItem('mapa_caisson', JSON.stringify(registros));
-            atualizarInterface();
-        }
-
-        function limparHistorico() {
-            if(confirm("Deseja apagar todos os dados salvos?")) {
-                localStorage.removeItem('mapa_caisson');
-                atualizarInterface();
-            }
-        }
-
-        window.onload = atualizarInterface;
-    </script>
-</body>
-</html>
+                data: new Date().toLocaleDateString('pt-BR')
