@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sistema de Gestão de Território - Mobile</title>
+    <style>
+        :root { --primary: #e67e22; --success: #27ae60; --danger: #e74c3c; --dark: #2c3e50; --info: #3498db; }
+        
+        * { box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            background: #f0f2f5; 
+            overflow-x: hidden;
+        }
+
+        /* Layout Adaptável (Mobile First) */
+        .map-section { 
+            flex: none; 
+            height: 45vh; 
+            position: relative; 
+            display: flex; 
+            flex-direction: column; 
+            padding: 8px; 
+        }
+        
+        .sidebar { 
+            flex: 1; 
+            background: white; 
+            border-top: 1px solid #ddd; 
+            padding: 15px; 
+            overflow-y: auto; 
+        }
+
+        /* Ajustes para telas maiores (Tablets em modo paisagem / Desktops) */
+        @media (min-width: 768px) {
+            body { flex-direction: row; overflow: hidden; }
+            .map-section { flex: 2; height: 100vh; }
+            .sidebar { flex: 1; border-top: none; border-left: 1px solid #ddd; padding: 20px; }
+        }
+
+        .canvas-container { position: relative; flex: 1; background: #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+        
+        /* Ajuste do container do mapa do Canva para preencher o fundo do Canvas */
+        .canva-background-container { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 1; 
+            overflow: hidden;
+        }
+
+        #drawingCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; touch-action: none; z-index: 2; }
+        
+        #canvaWrapper { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 3; display: none; background: white; 
+        }
+
+        .map-controls { background: white; padding: 8px; display: flex; gap: 10px; border-radius: 8px; margin-bottom: 8px; align-items: center; z-index: 10; font-size: 0.9rem; }
+        .btn-tool { padding: 8px 12px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: white; font-size: 0.85rem; flex: 1; text-align: center; }
+        .btn-tool.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .stats-box { background: var(--primary); color: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 15px; }
+        .stats-box h1 { margin: 0; font-size: 1.5rem; }
+
+        .territorio-config { background: #eee; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #ccc; }
+        
+        .quadra-selector-container { margin-bottom: 15px; }
+        
+        /* Grid adaptada para dedos em telas mobile */
+        .quadra-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
+        @media (min-width: 768px) { .quadra-grid { grid-template-columns: repeat(7, 1fr); } }
+        
+        .quadra-num { 
+            padding: 12px 2px; border: 1px solid #ddd; border-radius: 6px; 
+            text-align: center; cursor: pointer; font-size: 0.9rem; font-weight: bold; background: #f9f9f9;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .quadra-num.selected { background: var(--dark); color: white; border-color: var(--dark); }
+
+        .form-group { background: #f9f9f9; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #eee; }
+        label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 0.85rem; }
+        input, textarea, select { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; }
+        
+        .btn-action { width: 100%; padding: 14px; border: none; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; margin-bottom: 8px; font-size: 1rem; }
+        .btn-save { background: var(--success); }
+        .btn-clear { background: var(--danger); font-size: 0.85rem; padding: 10px; }
+
+        .history-item { border-left: 5px solid var(--primary); background: #fff; padding: 12px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: relative; }
+        .delete-item { position: absolute; top: 8px; right: 8px; color: var(--danger); cursor: pointer; font-weight: bold; font-size: 1.2rem; padding: 0 5px; }
+        .status-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 10px; color: white; text-transform: uppercase; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="map-section">
+        <div class="map-controls">
+            <button class="btn-tool active" id="penBtn" onclick="setTool('pen')">🖋️ Desenhar</button>
+            <button class="btn-tool" id="eraserBtn" onclick="setTool('eraser')">🧽 Apagar</button>
+            <button class="btn-tool" onclick="clearCanvas()">🗑️ Limpar</button>
+        </div>
+        <div class="canvas-container" id="container">
