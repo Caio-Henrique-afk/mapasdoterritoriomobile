@@ -46,15 +46,13 @@
 
         .canvas-container { position: relative; flex: 1; background: #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
         
-        /* Ajuste do container do mapa do Canva para preencher o fundo do Canvas */
-        .canva-background-container { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
+        /* Imagem de fundo estática vinda do Canva que permite desenho por cima */
+        #mapImage { 
             width: 100%; 
             height: 100%; 
+            object-fit: contain; 
+            position: absolute; 
             z-index: 1; 
-            overflow: hidden;
         }
 
         #drawingCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; touch-action: none; z-index: 2; }
@@ -108,3 +106,224 @@
             <button class="btn-tool" onclick="clearCanvas()">🗑️ Limpar</button>
         </div>
         <div class="canvas-container" id="container">
+            
+            <img src="https://www.canva.com/design/DAHKZFIg1vI/w6Ir9gc02ySVz1zZKpMN_w/view?embed" id="mapImage" alt="Mapa Geral">
+
+            <canvas id="drawingCanvas"></canvas>
+            
+            <div id="canvaWrapper">
+                <iframe loading="lazy" style="width: 100%; height: 100%; border: none;"
+                    src="https://www.canva.com/design/DAHJl5rVNdQ/d-B39fBg9nW6NuwmvIHOgw/view?embed" allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="stats-box">
+            <small>Território</small>
+            <h1>Unidade 205 ímpar</h1>
+        </div>
+
+        <div class="territorio-config">
+            <div style="display: flex; gap: 8px;">
+                <div style="flex: 1;">
+                    <label>Início Cobertura</label>
+                    <input type="date" id="dataInicioTerritorio">
+                </div>
+                <div style="flex: 1;">
+                    <label>Fim Cobertura</label>
+                    <input type="date" id="dataFimTerritorio">
+                </div>
+            </div>
+        </div>
+
+        <div class="quadra-selector-container">
+            <label>Selecione a Quadra:</label>
+            <div class="quadra-grid" id="quadraGrid"></div>
+        </div>
+
+        <div class="form-group">
+            <label>Quadra Identificada</label>
+            <input type="text" id="quadraNome" readonly placeholder="Selecione no painel acima">
+            
+            <label>Atualização da Quadra:</label>
+            <select id="statusQuadra">
+                <option value="Em andamento">🟡 Em andamento</option>
+                <option value="Concluído">🟢 Concluído</option>
+            </select>
+
+            <label>Observações do Progresso</label>
+            <textarea id="obs" rows="3" placeholder="Escreva aqui os detalhes da visita..."></textarea>
+
+            <button class="btn-action btn-save" onclick="salvarQuadra()">Salvar Atualização</button>
+        </div>
+
+        <div id="historico">
+            <h3>Histórico de Visitas</h3>
+        </div>
+        
+        <button class="btn-action btn-clear" style="margin-top: 15px;" onclick="limparHistorico()">Limpar Dados do Sistema</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('container');
+        const canvaWrapper = document.getElementById('canvaWrapper');
+        let drawing = false;
+        let currentTool = 'pen';
+        let selectedQuadra = null;
+
+        // Gerar Grid de Números 1-42
+        const quadraGrid = document.getElementById('quadraGrid');
+        for (let i = 1; i <= 42; i++) {
+            const div = document.createElement('div');
+            div.className = 'quadra-num';
+            div.innerText = i;
+            div.onclick = () => toggleQuadra(i, div);
+            quadraGrid.appendChild(div);
+        }
+
+        function toggleQuadra(num, element) {
+            const inputNome = document.getElementById('quadraNome');
+            if (selectedQuadra === num) {
+                selectedQuadra = null;
+                element.classList.remove('selected');
+                canvaWrapper.style.display = 'none';
+                inputNome.value = '';
+            } else {
+                document.querySelectorAll('.quadra-num').forEach(el => el.classList.remove('selected'));
+                selectedQuadra = num;
+                element.classList.add('selected');
+                canvaWrapper.style.display = 'block';
+                inputNome.value = 'Quadra ' + num;
+            }
+        }
+
+        function resizeCanvas() {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        window.addEventListener('load', () => { setTimeout(resizeCanvas, 300); });
+        window.addEventListener('resize', resizeCanvas);
+
+        // Suporte para Mouse (Desktop)
+        canvas.addEventListener('mousedown', () => drawing = true);
+        canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
+        canvas.addEventListener('mousemove', draw);
+
+        // Suporte para Toque / Touchscreen (Mobile)
+        canvas.addEventListener('touchstart', (e) => {
+            drawing = true;
+            draw(e.touches[0]);
+        }, { passive: true });
+        
+        canvas.addEventListener('touchend', () => { 
+            drawing = false; 
+            ctx.beginPath(); 
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            if (!drawing) return;
+            if (e.touches.length > 0) {
+                draw(e.touches[0]);
+                if(e.cancelable) e.preventDefault(); // Evita arrastar a tela enquanto desenha
+            }
+        }, { passive: false });
+
+        function draw(e) {
+            if (!drawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            ctx.lineWidth = currentTool === 'pen' ? 4 : 28;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            if (currentTool === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+            } else {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = 'rgba(230, 126, 34, 0.85)';
+            }
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        function setTool(tool) {
+            currentTool = tool;
+            document.getElementById('penBtn').classList.toggle('active', tool === 'pen');
+            document.getElementById('eraserBtn').classList.toggle('active', tool === 'eraser');
+        }
+
+        function clearCanvas() {
+            if(confirm("Apagar desenhos do mapa?")) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function salvarQuadra() {
+            const nome = document.getElementById('quadraNome').value;
+            const status = document.getElementById('statusQuadra').value;
+            const obs = document.getElementById('obs').value;
+
+            if(!nome) return alert("Selecione uma quadra primeiro!");
+
+            const registro = { 
+                id: Date.now(), 
+                nome, 
+                status, 
+                obs, 
+                data: new Date().toLocaleDateString('pt-BR') 
+            };
+            
+            let registros = JSON.parse(localStorage.getItem('mapa_caisson')) || [];
+            registros.unshift(registro);
+            localStorage.setItem('mapa_caisson', JSON.stringify(registros));
+
+            atualizarInterface();
+            document.getElementById('obs').value = '';
+        }
+
+        function atualizarInterface() {
+            const lista = document.getElementById('historico');
+            const registros = JSON.parse(localStorage.getItem('mapa_caisson')) || [];
+            lista.innerHTML = '<h3>Histórico de Visitas</h3>';
+
+            registros.forEach(reg => {
+                const color = reg.status === 'Concluído' ? 'var(--success)' : 'var(--info)';
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <span class="delete-item" onclick="removerItem(${reg.id})">×</span>
+                    <strong>${reg.nome}</strong> 
+                    <span class="status-badge" style="background:${color}">${reg.status}</span><br>
+                    <small>🕒 Registrado em: ${reg.data}</small>
+                    <p style="margin:5px 0; font-size:0.85rem;">${reg.obs}</p>
+                `;
+                lista.appendChild(item);
+            });
+        }
+
+        function removerItem(id) {
+            let registros = JSON.parse(localStorage.getItem('mapa_caisson')) || [];
+            registros = registros.filter(r => r.id !== id);
+            localStorage.setItem('mapa_caisson', JSON.stringify(registros));
+            atualizarInterface();
+        }
+
+        function limparHistorico() {
+            if(confirm("Deseja apagar todos os dados salvos?")) {
+                localStorage.removeItem('mapa_caisson');
+                atualizarInterface();
+            }
+        }
+
+        window.onload = atualizarInterface;
+    </script>
+</body>
+</html>
